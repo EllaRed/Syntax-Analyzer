@@ -1,0 +1,183 @@
+import re
+import os
+
+"""
+Syntax Analyzer for a Hypothetical Imperative Programming Language
+Author: Emmanuella Dasilva-Domingos
+Date: 23/06/2024
+
+Purpose:
+This script implements a syntax analyzer for a hypothetical imperative programming language. The analyzer reads input programs from text files and determines if they contain any syntax errors. The analysis is performed by tokenizing the input source code and then parsing it based on predefined EBNF rules. 
+
+Due to the unique nature of syntax, it would be difficult at my current level to create a single parser that can accept and work with any arbitrary EBNF set. This parser is specifically designed for the provided EBNF grammar for this hypothetical language.
+"""
+
+# Token specification
+token_specification = [
+    ('PROGRAM', r'program'),
+    ('BEGIN', r'begin'),
+    ('END', r'end'),
+    ('IF', r'if'),
+    ('THEN', r'then'),
+    ('LOOP', r'loop'),
+    ('IDENTIFIER', r'[a-zA-Z][a-zA-Z0-9]*'),
+    ('INT_CONSTANT', r'\d+'),
+    ('ASSIGN', r'='),
+    ('PLUS', r'\+'),
+    ('MINUS', r'-'),
+    ('TIMES', r'\*'),
+    ('DIVIDE', r'/'),
+    ('LPAREN', r'\('),
+    ('RPAREN', r'\)'),
+    ('LT', r'<'),
+    ('GT', r'>'),
+    ('SEMICOLON', r';'),
+    ('SKIP', r'[ \t]+'),  # Skip over spaces and tabs
+     ('NEWLINE', r'\n'),   # Line endings
+    ('MISMATCH', r'.'),   # Any other character
+]
+
+# Compile regex patterns
+token_regex = '|'.join(f'(?P<{pair[0]}>{pair[1]})' for pair in token_specification)
+get_token = re.compile(token_regex).match
+
+def tokenize(code):
+    line_no = 1
+    pos = line_start = 0
+    tokens = []
+    match = get_token(code)
+    while match is not None:
+        type_ = match.lastgroup
+        value = match.group(type_)
+        if type_ == 'NEWLINE':
+            line_start = pos
+            line_no += 1
+        elif type_ != 'SKIP' and type_ != 'MISMATCH':
+            tokens.append((type_, value))
+        pos = match.end()
+        match = get_token(code, pos)
+        #print(f"{line_no}: {tokens}") debug prnt stmt to see tokens and verify tokenization
+    tokens.append(('EOF', 'EOF')) 
+    return tokens
+
+### Parser
+
+# recursive descent parsing for none the non-terminals .
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.pos = 0
+
+    def error(self, message="Syntax error"):
+        current_token = self.current_token()
+        raise Exception(f"{message} at token {current_token}")
+
+    def current_token(self):
+        return self.tokens[self.pos] if self.pos < len(self.tokens) else ('EOF', 'EOF')
+
+    def eat(self, token_type):
+        current_token_type, current_token_value = self.current_token()
+        if current_token_type == token_type:
+            self.pos += 1
+        else:
+            self.error(f"Expected {token_type} but found {current_token_type}")
+
+    def program(self):
+        self.eat('PROGRAM')
+        self.eat('BEGIN')
+        self.statement_list()
+        self.eat('END')
+
+    def statement_list(self):
+        self.statement()
+        while self.current_token()[0] == 'SEMICOLON':
+            self.eat('SEMICOLON')
+            self.statement()
+
+    def statement(self):
+        if self.current_token()[0] == 'IDENTIFIER':
+            self.assignment_statement()
+        elif self.current_token()[0] == 'IF':
+            self.if_statement()
+        elif self.current_token()[0] == 'LOOP':
+            self.loop_statement()
+        else:
+            self.error("Unexpected statement")
+
+    def assignment_statement(self):
+        self.variable()
+        self.eat('ASSIGN')
+        self.expression()
+
+    def variable(self):
+        self.eat('IDENTIFIER')
+
+    def expression(self):
+        self.term()
+        while self.current_token()[0] in ('PLUS', 'MINUS'):
+            self.eat(self.current_token()[0])
+            self.term()
+
+    def term(self):
+        self.factor()
+        while self.current_token()[0] in ('TIMES', 'DIVIDE'):
+            self.eat(self.current_token()[0])
+            self.factor()
+
+    def factor(self):
+        if self.current_token()[0] == 'IDENTIFIER':
+            self.eat('IDENTIFIER')
+        elif self.current_token()[0] == 'INT_CONSTANT':
+            self.eat('INT_CONSTANT')
+        elif self.current_token()[0] == 'LPAREN':
+            self.eat('LPAREN')
+            self.expression()
+            self.eat('RPAREN')
+        else:
+            self.error("Unexpected factor")
+
+    def if_statement(self):
+        self.eat('IF')
+        self.eat('LPAREN')
+        self.logic_expression()
+        self.eat('RPAREN')
+        self.eat('THEN')
+        self.statement()
+
+    def logic_expression(self):
+        self.variable()
+        if self.current_token()[0] in ('LT', 'GT'):
+            self.eat(self.current_token()[0])
+        else:
+            self.error("Expected a relational operator (< or >)")
+        self.variable()
+
+    def loop_statement(self):
+        self.eat('LOOP')
+        self.eat('LPAREN')
+        self.logic_expression()
+        self.eat('RPAREN')
+        self.statement()
+
+# Example usage
+def main():
+    # Loop through the six program files
+    for i in range(1, 7):
+        filename = f'Program{i}.txt'
+        if os.path.exists(filename): # Check if the file exists
+            with open(filename, 'r') as file:
+                code = file.read()
+
+            print(f"\nTesting {filename}...")
+            tokens = tokenize(code)
+            parser = Parser(tokens)
+            try:
+                parser.program()
+                print(f"{filename} is syntactically correct.")
+            except Exception as e:
+                print(f"Syntax error in {filename}: {e}")
+        else:
+            print(f"{filename} does not exist.")
+
+if __name__ == '__main__':
+    main()
