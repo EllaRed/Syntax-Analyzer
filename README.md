@@ -26,3 +26,8 @@ The parser is based on the following EBNF rules:
 <if_statement> -> if (<logic_expression>) then <statement>
 <logic_expression> -> <variable> (< | >) <variable> (Assume that logic expressions have only less than or greater than operators)
 <loop_statement> -> loop (<logic_expression>) <statement>
+
+Source: Concepts of Programming Languages
+12th edition
+Robert W. Sebesta
+Pearson Education, 2018
